@@ -141,22 +141,3 @@ async def get_feedback(request: Request):
         )
     except pydantic.ValidationError as e:
         return Helper.generate_api_response(False, e.json())
-
-
-def get_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-    finally:
-        s.close()
-    return ip
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    ip_address = get_ip()
-    print(f"current_ip_address: {ip_address}")
-
-    uvicorn.run(api, host=ip_address, port=5000)
