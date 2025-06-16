@@ -3,4 +3,6 @@
 .vscode
 __pycache__
 api.log
-venv/*
+.venv/*
+*.zip
+*.json
