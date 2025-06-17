@@ -34,7 +34,7 @@ initialize_app(credential)
 
 redis_client = redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
 
-MAX_REQUESTS = 25  # number of queries an unauthenticated user is allowed per-day.
+MAX_REQUESTS = 5  # number of queries an unauthenticated user is allowed per-day.
 WINDOW = 86400  # number of seconds in a day
 
 
@@ -53,13 +53,11 @@ def verify_firebase_token(request: Request) -> Dict:
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid token")
 
-    print(f"auth_header={auth_header}")
     token = auth_header.split(" ")[1]
     try:
         decoded_token = auth.verify_id_token(token)
         return decoded_token
     except InvalidIdTokenError as err:
-        print(f"err: {str(err)}")
         raise HTTPException(
             status_code=401, detail="Your authorization token is invalid"
         ) from err
@@ -112,7 +110,7 @@ def rate_limit_user(uuid: str):
         )
 
 
-@api.delete("/api/cuvOA/deleteAccount")
+@api.delete("/api/cuvOA/delete")
 async def delete_anonymous_user_data(request: Request):
     try:
         user = verify_firebase_token(request)
@@ -136,7 +134,6 @@ async def fetch_verses_stream(request: Request):
     try:
         user = verify_firebase_token(request)
     except HTTPException as e:
-        print(f"HTTPException status code: {e}")
         response = Helper.generate_api_response(
             False, None, message=e.detail, code=e.status_code
         )
@@ -144,7 +141,6 @@ async def fetch_verses_stream(request: Request):
 
     uuid = user["uid"]
     is_anonymous = user.get("firebase", {}).get("sign_in_provider") == "anonymous"
-    print(f"is_anonymous={is_anonymous}")
 
     if is_anonymous:
         try:
