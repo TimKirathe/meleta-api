@@ -9,7 +9,7 @@ import redis
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from firebase_admin import auth, credentials, initialize_app
+from firebase_admin import app_check, auth, credentials, initialize_app
 from firebase_admin.auth import (
     CertificateFetchError,
     ExpiredIdTokenError,
@@ -38,7 +38,7 @@ MAX_REQUESTS = 5  # number of queries an unauthenticated user is allowed per-day
 WINDOW = 86400  # number of seconds in a day
 
 
-def verify_firebase_token(request: Request) -> Dict:
+def verify_firebase_id_token(request: Request) -> Dict:
     """Determines whether request is made by a user registered to firebase backend.
 
     Returns:
@@ -86,8 +86,30 @@ def verify_firebase_token(request: Request) -> Dict:
     )
 
 
+def verify_firebase_app_check_token(request: Request) -> Dict:
+    """Determines whether request is made by the mobile application.
+
+    Returns:
+        Dict: The decoded app check token if verification is successful.
+
+    Raises:
+        HTTPException:
+            If the token format is incorrect or malformed, or if the token is
+            valid but has expired, or if the header does not exist.
+    """
+    app_check_token = request.headers.get("X-Firebase-AppCheck")
+    if not app_check_token:
+        raise HTTPException(status_code=401, detail="Missing app token")
+
+    try:
+        claims = app_check.verify_token(token=app_check_token)
+        return claims
+    except (InvalidIdTokenError, ExpiredIdTokenError) as err:
+        raise HTTPException(status_code=401, detail="Malformed/Expired token") from err
+
+
 def rate_limit_user(uuid: str):
-    """Determines whether or not to rate limt user.
+    """Determines whether or not to rate limit user.
 
     This is determined by how many requests have been recorded as successful by an unauthenticated
     user.
@@ -113,7 +135,8 @@ def rate_limit_user(uuid: str):
 @api.delete("/api/cuvOA/delete")
 async def delete_anonymous_user_data(request: Request):
     try:
-        user = verify_firebase_token(request)
+        user = verify_firebase_id_token(request)
+        verify_firebase_app_check_token(request)
     except HTTPException as e:
         response = Helper.generate_api_response(
             success=False, data=None, message=e.detail, code=e.status_code
@@ -132,7 +155,8 @@ async def delete_anonymous_user_data(request: Request):
 @api.post("/api/fetchVerses/stream")
 async def fetch_verses_stream(request: Request):
     try:
-        user = verify_firebase_token(request)
+        user = verify_firebase_id_token(request)
+        verify_firebase_app_check_token(request)
     except HTTPException as e:
         response = Helper.generate_api_response(
             False, None, message=e.detail, code=e.status_code
@@ -222,6 +246,22 @@ async def fetch_verses_stream(request: Request):
 
 @api.post("/api/summariseQuery")
 async def summarise_user_query(request: Request) -> ApiResponse:
+    try:
+        user = verify_firebase_id_token(request)
+        verify_firebase_app_check_token(request)
+    except HTTPException as e:
+        response = Helper.generate_api_response(
+            success=False, data=None, message=e.detail, code=e.status_code
+        )
+        return response
+
+    is_anonymous = user.get("firebase", {}).get("sign_in_provider") == "anonymous"
+
+    if is_anonymous:
+        return Helper.generate_api_response(
+            False, "You don't have permissions to do this!"
+        )
+
     query_data = await request.json()
 
     user_query = query_data["query"]
@@ -235,6 +275,15 @@ async def summarise_user_query(request: Request) -> ApiResponse:
 
 @api.post("/api/feedback")
 async def get_feedback(request: Request):
+    try:
+        verify_firebase_id_token(request)
+        verify_firebase_app_check_token(request)
+    except HTTPException as e:
+        response = Helper.generate_api_response(
+            success=False, data=None, message=e.detail, code=e.status_code
+        )
+        return response
+
     feedback_data = await request.json()
 
     try:
