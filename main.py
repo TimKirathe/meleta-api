@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import socket
@@ -22,6 +23,15 @@ from helper import Helper
 from models import ApiResponse, UserFeedback, VerseListStream
 
 load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.FileHandler(os.getenv("LOGFILE")), logging.StreamHandler()],
+)
+
+logger = logging.getLogger(__name__)
+
 
 openai_client_async = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 openai_client_sync = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -289,7 +299,7 @@ async def get_feedback(request: Request):
     try:
         feedback = UserFeedback(**feedback_data)
 
-        print(
+        logger.info(
             f"Feedback: {feedback.feedback}\n"
             f"Book: {feedback.book}\n"
             f"Chapter: {feedback.chapter}\n"
