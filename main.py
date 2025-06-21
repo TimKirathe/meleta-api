@@ -118,13 +118,42 @@ def verify_firebase_app_check_token(request: Request) -> Dict:
         raise HTTPException(status_code=401, detail="Malformed/Expired token") from err
 
 
-def rate_limit_user(uuid: str):
+def get_device_id_from_app_check(request: Request) -> str:
+    """Extracts the unique identifier from the App Check token.
+
+    The unique identifier is based on the device id and is used to enforce rate
+    limiting even if a user logs out of one anonymous account, and tries to create
+    a new one.
+
+    Returns:
+        str: The device id
+
+    Raises:
+        HTTPException:
+            If the token format is incorrect or malformed, or if the token is
+            valid but has expired, or if the header does not exist.
+    """
+    app_check_token = request.headers.get("X-Firebase-AppCheck")
+    if not app_check_token:
+        raise HTTPException(status_code=401, detail="Missing app token")
+
+    claims = app_check.verify
+
+
+def rate_limit_user(uuid: str, device_id: str):
     """Determines whether or not to rate limit user.
 
-    This is determined by how many requests have been recorded as successful by an unauthenticated
-    user.
+    This is determined by verifying whether a user has surpassed their daily
+    quota. The uuid is the unique id given by firebase, and the device id is
+    unique to the device that the app is installed on. This ensures that even
+    if a user logs out and back in with a new anonymous account, they will
+    still be rate limited.
+
+    Raises:
+        HTTPException:
+            If user has reacched their request limit for the day.
     """
-    key = f"rate_limit:{uuid}"
+    key = f"rate_limit:{device_id}:{uuid}"
     current = redis_client.get(key)
 
     if current is None:
@@ -166,7 +195,7 @@ async def delete_anonymous_user_data(request: Request):
 async def fetch_verses_stream(request: Request):
     try:
         user = verify_firebase_id_token(request)
-        verify_firebase_app_check_token(request)
+        claims = verify_firebase_app_check_token(request)
     except HTTPException as e:
         response = Helper.generate_api_response(
             False, None, message=e.detail, code=e.status_code
@@ -174,11 +203,12 @@ async def fetch_verses_stream(request: Request):
         return response
 
     uuid = user["uid"]
+    device_id = claims["sub"]
     is_anonymous = user.get("firebase", {}).get("sign_in_provider") == "anonymous"
 
     if is_anonymous:
         try:
-            rate_limit_user(uuid)
+            rate_limit_user(uuid, device_id)
         except HTTPException as e:
             response = Helper.generate_api_response(
                 False, None, message=e.detail, code=e.status_code
