@@ -44,7 +44,7 @@ initialize_app(credential)
 
 redis_client = redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
 
-MAX_REQUESTS = 5  # number of queries an unauthenticated user is allowed per-day.
+MAX_REQUESTS = 40  # number of queries an unauthenticated user is allowed per-day.
 WINDOW = 86400  # number of seconds in a day
 
 
