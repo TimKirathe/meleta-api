@@ -183,8 +183,6 @@ async def fetch_verses_stream(request: Request):
     uuid = user["uid"]
     device_id = claims["sub"]
 
-    print(f"claims: {claims}")
-
     is_anonymous = user.get("firebase", {}).get("sign_in_provider") == "anonymous"
 
     if is_anonymous:
