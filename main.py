@@ -180,14 +180,13 @@ async def fetch_verses_stream(request: Request):
         )
         return response
 
-    uuid = user["uid"]
     device_id = claims["sub"]
 
     is_anonymous = user.get("firebase", {}).get("sign_in_provider") == "anonymous"
 
     if is_anonymous:
         try:
-            rate_limit_user(uuid, device_id)
+            rate_limit_user(device_id)
         except HTTPException as e:
             response = Helper.generate_api_response(
                 False, None, message=e.detail, code=e.status_code
