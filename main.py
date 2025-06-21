@@ -118,28 +118,6 @@ def verify_firebase_app_check_token(request: Request) -> Dict:
         raise HTTPException(status_code=401, detail="Malformed/Expired token") from err
 
 
-def get_device_id_from_app_check(request: Request) -> str:
-    """Extracts the unique identifier from the App Check token.
-
-    The unique identifier is based on the device id and is used to enforce rate
-    limiting even if a user logs out of one anonymous account, and tries to create
-    a new one.
-
-    Returns:
-        str: The device id
-
-    Raises:
-        HTTPException:
-            If the token format is incorrect or malformed, or if the token is
-            valid but has expired, or if the header does not exist.
-    """
-    app_check_token = request.headers.get("X-Firebase-AppCheck")
-    if not app_check_token:
-        raise HTTPException(status_code=401, detail="Missing app token")
-
-    claims = app_check.verify
-
-
 def rate_limit_user(uuid: str, device_id: str):
     """Determines whether or not to rate limit user.
 
@@ -204,6 +182,9 @@ async def fetch_verses_stream(request: Request):
 
     uuid = user["uid"]
     device_id = claims["sub"]
+
+    print(f"claims: {claims}")
+
     is_anonymous = user.get("firebase", {}).get("sign_in_provider") == "anonymous"
 
     if is_anonymous:
