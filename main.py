@@ -118,7 +118,7 @@ def verify_firebase_app_check_token(request: Request) -> Dict:
         raise HTTPException(status_code=401, detail="Malformed/Expired token") from err
 
 
-def rate_limit_user(uuid: str, device_id: str):
+def rate_limit_user(device_id: str):
     """Determines whether or not to rate limit user.
 
     This is determined by verifying whether a user has surpassed their daily
@@ -131,7 +131,7 @@ def rate_limit_user(uuid: str, device_id: str):
         HTTPException:
             If user has reacched their request limit for the day.
     """
-    key = f"rate_limit:{device_id}:{uuid}"
+    key = f"rate_limit:{device_id}"
     current = redis_client.get(key)
 
     if current is None:
